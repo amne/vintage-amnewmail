@@ -1,0 +1,219 @@
+<?php
+
+$type = "POP3"; //change it to IMAP if IMAP
+$server = "";
+$username = "";
+$password = "";
+
+
+
+if($CMD == "topframe") {
+if($type == "POP3") {
+$mbox = imap_open("{".$server.":110/pop3}INBOX", $username, $password);
+} elseif($type == "IMAP") {
+$mbox = imap_open("{".$server."}INBOX", $username, $password);
+}
+echo "<META HTTP-EQUIV='refresh' CONTENT='1500'>\n";
+echo "<BODY BGCOLOR=BLUE><FONT COLOR=WHITE>\n";
+$mcheck = imap_check($mbox);
+$mnum = $mcheck->Nmsgs;
+$overview = imap_fetch_overview($mbox, "1:$mnum", 0);
+echo "<TABLE BORDER=0>\n";
+echo "<TR><TD>FROM</TD><TD>SUBJECT</TD><TD>DATE</TD><TD>MSG Option</TD></TR>";
+
+$nbm = sizeof($overview);
+for($i= $nbm-1; $i >= 0; $i--) {
+$val=$overview[$i];
+$nb=$val->msgno;
+$rawsubject = imap_mime_header_decode($val->subject);
+$subject = $rawsubject[0]->text;
+if($subject == ''){ $subject = "(no subject)"; }
+$from=$val->from;
+$date=$val->date;
+echo "<TR><TD><A HREF='$PHP_SELF?CMD=view&num=$nb' STYLE='cursor:hand' STYLE='color:white'>";
+echo "$from</A></TD><TD><A HREF='$PHP_SELF?CMD=view&num=$nb' STYLE='color:white'>$subject</A></TD><TD><A HREF='$PHP_SELF?CMD=view&num=$nb' STYLE='color:white'>$date</A></TD><TD><A HREF='$PHP_SELF?CMD=delete&num=$nb' STYLE='color:white'>Delete</A></TR>";
+}
+echo "</TABLE>\n</BODY>";
+if($overview30 = imap_fetch_overview($mbox, "1:0", 0)) {
+echo "<BR><FONT COLOR='white'>You have no messages in your inbox.</FONT>";
+}
+imap_close($mbox);
+} elseif($CMD == "view") {
+if($type == "POP3") {
+$mbox = imap_open("{".$server.":110/pop3}INBOX", $username, $password);
+} elseif($type == "IMAP") {
+$mbox = imap_open("{".$server."}INBOX", $username, $password);
+}
+$info=imap_header($mbox, $num);
+$from=$info->from[0];
+echo "<STYLE> A { color:yellow } </STYLE>";
+echo "<BODY BGCOLOR=BLUE>\n";
+echo "<TABLE BORDER=0 BGCOLOR=BLUE><FONT COLOR=WHITE>";
+echo "<TR><TD><A HREF='$PHP_SELF?CMD=topframe'>Back to Messages</A></TD><TD><A HREF='javascript:void(window.open(\"$PHP_SELF?CMD=reply&num=$num\"))'>Reply to Message</A></TD><TD><A HREF='$PHP_SELF?CMD=delete&num=$num'>Delete This Message</A></TD><TD><A HREF='javascript:void(window.open(\"$PHP_SELF?CMD=compose\"))'>Compose Message</A></TD></TR>";
+echo "<TR><TD>From</TD><TD>$from->mailbox@$from->host</TD></TR>";
+echo "<TR><TD>To</TD><TD>$info->toaddress</TD></TR>";
+if($info->ccaddress){ echo "<TR><TD>CC</TD><TD>$info->ccaddress</TD></TR>"; }
+echo "<TR><TD>Date</TD><TD>$info->Date</TD></TR>";
+echo "<TR><TD>Subject</TD><TD>$info->Subject</TD></TR>";
+$structure = imap_fetchstructure($mbox, $num);
+$structure=imap_fetchstructure($mbox,$num);
+if(isset($structure->parts)) {
+echo "<tr><td>Attachments</td><td>";
+while(list($key,$val) = each($structure->parts)) {
+if($key > 0) {
+if($val->ifparameters) {
+$attach=$val->parameters;
+echo "<a href='$PHP_SELF?CMD=Attachview&num=$num&part=$key' TARGET=f>";
+echo $attach[0]->value;
+echo "</a>,&nbsp;";
+} else {
+echo "<a href='$PHP_SELF?CMD=Attachview&num=$num&part=$key' TARGET=f>";
+echo "(unnamed)</a>,&nbsp;";
+}
+}
+}
+}
+echo "</TABLE><BR><PRE>";
+if(isset($structure->parts)) {
+$body=imap_fetchbody($mbox,$num,1);
+} else {
+$body=imap_body($mbox,$num);
+$body=str_replace("embed", "cleaned_tag", $body);
+$body=str_replace("object", "cleaned_tag", $body);
+}
+echo $body;
+echo "</PRE><BR>";
+echo "<TABLE BORDER=0>";
+echo "<TR><TD><A HREF='$PHP_SELF?CMD=topframe'>Back to Messages</A></TD><TD><A HREF='javascript:void(window.open(\"$PHP_SELF?CMD=reply&num=$num\"))'>Reply to Message</A></TD><TD><A HREF='$PHP_SELF?CMD=delete&num=$num'>Delete This Message</A></TD><TD><A HREF='javascript:void(window.open(\"$PHP_SELF?CMD=compose\"))'>Compose Message</A></TD></TR>";
+echo "</TABLE>";
+imap_close($mbox);
+} elseif($CMD == "reply") {
+if($type == "POP3") {
+$mbox = imap_open("{".$server.":110/pop3}INBOX", $username, $password);
+} elseif($type == "IMAP") {
+$mbox = imap_open("{".$server."}INBOX", $username, $password);
+}
+$replytext=imap_header($mbox, $num);
+$to=$replytext->from[0];
+echo "<BODY BGCOLOR=BLUE><FONT COLOR=WHITE>\n";
+echo "<FORM ACTION='$PHP_SELF?CMD=send' METHOD='post'>\n";
+echo "<H1>Reply to this Message</H1>";
+echo "To: <input type='text' name='to' value='$to->mailbox@$to->host'><BR>\n";
+echo "From: <input type='text' name='fr' value='$replytext->toaddress'><BR>\n";
+$subj = $replytext->Subject;
+$subj = str_replace("Re: Re:", "", $subj);
+echo "Subject: <input type='text' name='su' value='Re: $subj'><BR>\n";
+echo "<TEXTAREA ROWS='20' cols='30' name='ms'>";
+$body = imap_body($mbox, $num);
+$body = str_replace("\n", "\n&gt;", $body);
+$body = str_replace("<", "&amp;lt;", $body);
+$body = str_replace(">", "&amp;gt;", $body);
+$body = str_replace("=E6", "æ", $body);
+$body = str_replace("=F8", "ø", $body);
+$body = str_replace("=E5", "å", $body);
+$body = str_replace("=C6", "Æ", $body);
+$body = str_replace("=D8", "Ø", $body);
+$body = str_replace("=C5", "Å", $body);
+$body = str_replace("=A7", "§", $body);
+$body = str_replace("=A4", "¤", $body);
+$body = str_replace("=3D", "=", $body);
+$body = str_replace("=20", " ", $body);
+$body = str_replace("=A3", "£", $body);
+$body = str_replace("=E4", "ä", $body);
+$body = str_replace("=F6", "ö", $body);
+$body = str_replace("=C4", "Ä", $body);
+$body = str_replace("=D6", "Ö", $body);
+echo $body;
+echo "</TEXTAREA><BR>\n";
+echo "<INPUT TYPE=submit value='Send Message'>";
+imap_close($mbox);
+} elseif($CMD == "delete") {
+if($type == "POP3") {
+$mbox = imap_open("{".$server.":110/pop3}INBOX", $username, $password);
+} elseif($type == "IMAP") {
+$mbox = imap_open("{".$server."}INBOX", $username, $password);
+}
+imap_delete($mbox, $num);
+imap_expunge($mbox);
+echo "<SCRIPT LANGUAGE='JavaScript'><!--\n\n";
+echo "window.location='$PHP_SELF?CMD=topframe';\n";
+echo "//--></SCRIPT>";
+imap_close($mbox);
+} elseif($CMD == "Attachview") {
+if($type == "POP3") {
+$mbox=imap_open("{".$server.":110/pop3}INBOX",$username,$password);
+} elseif($type == "IMAP") {
+$mbox=imap_open("{".$server."}INBOX",$username,$password);
+} else {
+echo "Anything other than IMAP or POP3 unknown!"; exit;
+}
+$mimetype=array("text","multipart","message","application","audio","image","video","other");
+
+$structure=imap_fetchstructure($mbox,$num);
+$attach_body = imap_fetchbody($mbox,$num,$part+1);
+$atype=$structure->parts[$part]->type;
+if($atype=="") $atype=0;
+$asubtype=$structure->parts[$part]->subtype;
+if($asubtype == "") $asubtype='PLAIN';
+$attach_type=$mimetype[$atype]."/".$asubtype;
+$attach_name=$structure->parts[$part]->parameters[0]->value;
+if($attach_name = "") $attach_name='(unnamed)';
+
+$anencode=$structure->parts[$part]->encoding;
+if($anencode == 3){
+$return_content=imap_base64($attach_body);
+} elseif($anencode == 4) {
+$return_content=imap_qprint($attach_body);
+} else {
+$return_content=$attach_body;
+}
+header("Content-type: $attach_type");
+if(($atype != 0) && ($atype != 5)){
+header("Content-Disposition: attachment; filename=$attach_name");
+}
+echo $return_content;
+} elseif($CMD == "compose") {
+echo "<BODY BGCOLOR=BLUE><FONT COLOR=WHITE>\n";
+echo "<FORM ACTION='$PHP_SELF?CMD=send' METHOD='post'>\n";
+echo "<H1>Compose Message</H1>";
+echo "To: <input type='text' name='to' value=''><BR>\n";
+echo "From: <input type='text' name='fr' value=''><BR>\n";
+echo "Subject: <input type='text' name='su' value=''><BR>\n";
+echo "<TEXTAREA ROWS='20' cols='30' name='ms'>";
+echo "</TEXTAREA><BR>\n";
+echo "<INPUT TYPE=submit value='Send Message'>";
+} elseif($CMD == "leftframe") {
+echo "<STYLE>\n";
+echo "A { color:yellow; }\n";
+echo "</STYLE>\n";
+echo "<BODY BGCOLOR=BLUE><FONT COLOR=WHITE>\n";
+echo "<BR><BR>NewMail 0.2<BR><BR>";
+echo "<A HREF='$PHP_SELF?CMD=topframe' TARGET='msg'>INBOX</A><BR><BR><BR><BR>";
+echo "<A HREF='$PHP_SELF?CMD=compose' TARGET='compwin'>Compose</A><BR><BR><BR><BR>";
+echo "<A HREF='$PHP_SELF?CMD=logout' TARGET='_top'>Log Out</A><BR>";
+echo "</BODY>";
+} elseif($CMD == "logout") {
+setcookie("server");
+setcookie("username");
+setcookie("password");
+setcookie("type");
+echo "<CENTER><H1>Log Out</H1>\n";
+echo "You have been logged out. <a href='$PHP_SELF'>Re-Login</A>";
+if($ReturnToPageLink) {
+echo "<BR><BR><BR><A HREF='$ReturnToPageLink?returnedfrom=NewMail'>Return to $ReturnToPageLink</A>";
+}
+echo "</CENTER>";
+} elseif($CMD == "send") {
+mail($to, $su, $ms, 'FROM: '.$fr);
+echo "<SCRIPT> window.close() </SCRIPT>";
+} elseif($CMD == "framed") {
+echo "<HTML>\n";
+echo "<FRAMESET frameborder='NO' border='0' framespacing='0' COLS='109,*'>\n";
+echo "<FRAME SRC='$PHP_SELF?CMD=leftframe' NAME='left' SCROLLING=no>\n";
+echo "<FRAME SRC='$PHP_SELF?CMD=topframe' NAME='msg'>\n";
+echo "</FRAMESET>";
+echo "</HTML>\n";
+} else {
+echo "<SCRIPT>window.location='$PHP_SELF?CMD=framed' </SCRIPT>";
+}
+?>
